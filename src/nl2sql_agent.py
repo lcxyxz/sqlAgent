@@ -2,7 +2,7 @@
 NL2SQL Agent
 """
 import textwrap
-from .schema_loader import BaseSchemaLoader,MySQLSchemaLoader
+from .schema_loader import BaseSchemaLoader,MySQLSchemaLoader,SQLiteSchemaLoader
 from .schema import SchemaModel
 import os
 import time
@@ -72,6 +72,8 @@ class NL2SQLAgent:
         """根据数据库类型获取对应的 Schema Loader"""
         if self.db_config["provider"] == 'mysql':
             return MySQLSchemaLoader(conn)
+        elif self.db_config["provider"] == 'sqlite':
+            return SQLiteSchemaLoader(conn)
         else:
             raise ValueError(f"不支持的数据库类型: {self.db_config['provider']}")
     def _format_schema(self) -> str:
@@ -231,28 +233,35 @@ class NL2SQLAgent:
     def _get_database_pool(self):
         """获取相应服务商的数据库连接池
         """
-        creator = None
         if self.db_config['provider'] == 'mysql':
             import pymysql
-            creator = pymysql
+            return PooledDB(
+                        creator=pymysql,
+                        maxconnections=10,  # 最大连接数
+                        mincached=2,        # 初始化时创建的空闲连接数
+                        maxcached=5,        # 连接池中最多闲置的连接数
+                        maxusage=100,  # 每个连接最多使用100次后自动重建，防止老化
+                        ping=1,        # 在使用前检查连接是否存活 (0=不检查, 1=默认检查, 2=获取时检查, 7=总是检查)
+                        host=self.db_config.get('host', 'localhost'),
+                        port=self.db_config.get('port', 3306),
+                        user=self.db_config['user'],
+                        password=self.db_config['password'],
+                        database=self.db_config['database'],
+                        charset=self.db_config.get('charset', 'utf8mb4')
+                        )
         elif self.db_config['provider'] == 'sqlite':
             import sqlite3
-            creator = sqlite3
+            return PooledDB(
+                        creator=sqlite3,
+                        maxconnections=10,  # 最大连接数
+                        mincached=2,        # 初始化时创建的空闲连接数
+                        maxcached=5,        # 连接池中最多闲置的连接数
+                        maxusage=100,  # 每个连接最多使用100次后自动重建，防止老化
+                        ping=1,        # 在使用前检查连接是否存活 (0=不检查, 1=默认检查, 2=获取时检查, 7=总是检查)
+                        database = self.db_config['sqlite_db_path']
+                        )
         else:
             raise ValueError("不支持的数据库服务提供商: %s", self.db_config['provider'])
-        return PooledDB(
-            creator=creator,
-            maxconnections=10,  # 最大连接数
-            mincached=2,        # 初始化时创建的空闲连接数
-            maxcached=5,        # 连接池中最多闲置的连接数
-            maxusage=100,  # 每个连接最多使用100次后自动重建，防止老化
-            ping=1,        # 在使用前检查连接是否存活 (0=不检查, 1=默认检查, 2=获取时检查, 7=总是检查)
-            host=self.db_config.get('host', 'localhost'),
-            port=self.db_config.get('port', 3306),
-            user=self.db_config['user'],
-            password=self.db_config['password'],
-            database=self.db_config['database'],
-            charset=self.db_config.get('charset', 'utf8mb4')
-        )
+
 
 

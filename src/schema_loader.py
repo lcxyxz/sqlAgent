@@ -1,5 +1,5 @@
 # src/schema_loader.py
-import pymysql
+import sqlite3
 from typing import Dict, Any, List
 from logging import getLogger
 
@@ -88,23 +88,105 @@ class MySQLSchemaLoader(BaseSchemaLoader):
         finally:
             cursor.close()
 
-class PostgresSchemaLoader(BaseSchemaLoader):
+class SQLiteSchemaLoader(BaseSchemaLoader):
+    """SQLite Schema 加载器"""
+
     def load_tables(self) -> Dict[str, Any]:
+        """加载所有表的基本信息"""
         cursor = self.conn.cursor()
         try:
+            # 从 sqlite_master 获取所有用户表
             cursor.execute("""
-                SELECT tablename, obj_description((schemaname || '.' || tablename)::regclass, 'pg_class') as comment
-                FROM pg_tables
-                WHERE schemaname = 'public'
+                SELECT name 
+                FROM sqlite_master 
+                WHERE type='table' AND name NOT LIKE 'sqlite_%'
+                ORDER BY name
             """)
             tables = {}
-            for table_name, comment in cursor.fetchall():
+            for (table_name,) in cursor.fetchall():
+                # SQLite 原生不支持表注释，使用表名作为描述
                 tables[table_name] = {
                     'columns': {},
-                    'description': comment or table_name
+                    'description': table_name
                 }
+            logger.info("已加载 %d 个表", len(tables))
             return tables
+        except Exception as e:
+            logger.error("加载表信息失败: %s", str(e))
+            raise
         finally:
             cursor.close()
-    
-    # ... 实现 load_columns 和 load_relationships ...
+
+    def load_columns(self, tables: Dict[str, Any]) -> Dict[str, Any]:
+        """加载每个表的列信息"""
+        cursor = self.conn.cursor()
+        try:
+            for table_name in tables.keys():
+                # 使用 PRAGMA table_info 获取列信息
+                cursor.execute(f"PRAGMA table_info('{table_name}')")
+                columns_info = cursor.fetchall()
+                
+                for col in columns_info:
+                    # PRAGMA table_info 返回: (cid, name, type, notnull, dflt_value, pk)
+                    cid, col_name, data_type, not_null, default_value, is_pk = col
+                    
+                    tables[table_name]['columns'][col_name] = {
+                        'type': data_type.upper() if data_type else 'TEXT',
+                        'nullable': not bool(not_null),
+                        'primary_key': bool(is_pk),
+                        'description': col_name,
+                        'default': default_value
+                    }
+            
+            logger.info("已加载所有表的列信息")
+            return tables
+        except Exception as e:
+            logger.error("加载列信息失败: %s", str(e))
+            raise
+        finally:
+            cursor.close()
+
+    def load_relationships(self) -> List[Dict[str, str]]:
+        """加载外键关系"""
+        cursor = self.conn.cursor()
+        try:
+            relationships = []
+            
+            # 遍历所有表，获取外键信息
+            cursor.execute("""
+                SELECT name 
+                FROM sqlite_master 
+                WHERE type='table' AND name NOT LIKE 'sqlite_%'
+            """)
+            tables = [row[0] for row in cursor.fetchall()]
+            
+            for table_name in tables:
+                # 使用 PRAGMA foreign_key_list 获取外键
+                cursor.execute(f"PRAGMA foreign_key_list('{table_name}')")
+                fk_info = cursor.fetchall()
+                
+                for fk in fk_info:
+                    # PRAGMA foreign_key_list 返回:
+                    # (id, seq, table, from, to, on_update, on_delete, match)
+                    fk_id, seq, ref_table, from_col, to_col, on_update, on_delete, match = fk
+                    
+                    relationships.append({
+                        'from': f"{table_name}.{from_col}",
+                        'to': f"{ref_table}.{to_col}"
+                    })
+            
+            logger.info("已加载 %d 个外键关系", len(relationships))
+            return relationships
+        except Exception as e:
+            logger.error("加载外键关系失败: %s", str(e))
+            raise
+        finally:
+            cursor.close()
+
+
+class PostgresSchemaLoader(BaseSchemaLoader):
+    """PostgreSQL Schema 加载器"""
+    pass
+
+
+

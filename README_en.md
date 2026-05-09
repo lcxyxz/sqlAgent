@@ -9,7 +9,7 @@
 
 - 🎯 **Natural Language to SQL**: Automatically convert user questions into correct SQL queries
 - 🔒 **Secure & Reliable**: Only SELECT queries allowed, with multiple built-in SQL security validation mechanisms
-- 🗄️ **Multi-database Support**: (Currently only supports MySQL database)
+- 🗄️ **Multi-database Support**: (Currently only supports MySQL and Sqlite database)
 - 🔄 **Automatic Schema Loading**: Automatically load table structures and relationship information from database metadata
 - 💬 **Context-Aware**: Generate precise SQL queries based on complete database Schema
 - ⚡ **High-Performance Connection Pool**: Uses DBUtils connection pool management to improve concurrency performance
@@ -63,7 +63,8 @@ The system automatically loads from the database's `INFORMATION_SCHEMA`:
 - Foreign key relationship mappings
 
 Supported database types:
-- ✅ MySQL (implemented)
+- MySQL
+- SQLite 
 - More databases will be implemented in the future
 
 ### 2. SQL Generation Workflow

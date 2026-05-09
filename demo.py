@@ -2,7 +2,7 @@ import logging
 import os
 from dotenv import load_dotenv
 from src import NL2SQLAgent
-
+from config import settings
 # 加载 .env 文件
 load_dotenv()
 
@@ -17,25 +17,9 @@ logging.basicConfig(
     ]
 )
 
-# 从环境变量读取数据库配置
-db_config = {
-    "provider": os.getenv("DB_PROVIDER", "mysql"),
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", "3306")),
-    "user": os.getenv("DB_USER", "root"),
-    "password": os.getenv("DB_PASSWORD", ""),
-    "database": os.getenv("DB_DATABASE", "test")
-}
-
-# 从环境变量读取LLM配置
-llm_config = {
-    "api_key": os.getenv("LLM_API_KEY", ""),
-    "model": os.getenv("LLM_MODEL", "gpt-3.5-turbo"),
-    "base_url": os.getenv("LLM_BASE_URL", ""),
-    "temperature": float(os.getenv("LLM_TEMPERATURE", "0.0")),
-    "max_tokens": int(os.getenv("LLM_MAX_TOKENS", "2000")),
-    "timeout": int(os.getenv("LLM_TIMEOUT", "60"))
-}
+db_config = settings.db.get_connection_params()
+llm_config = settings.llm.get_config_params()
+print(db_config)
 
 agent = NL2SQLAgent(db_config=db_config, llm_config=llm_config)
 
